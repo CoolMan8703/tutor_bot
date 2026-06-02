@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Расписание — Панель учителя</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #161922;
+    --surface2: #1e2330;
+    --border: #2a3045;
+    --accent: #c9a84c;
+    --accent-dim: rgba(201,168,76,0.15);
+    --accent-glow: rgba(201,168,76,0.4);
+    --text: #e8e4d9;
+    --text-muted: #7a8099;
+    --success: #4caf7a;
+    --danger: #e05555;
+    --today: rgba(201,168,76,0.08);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 40px;
+  }
+  header {
+    background: linear-gradient(135deg, var(--surface), #1a1f2e);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo-icon {
+    width: 38px; height: 38px;
+    background: var(--accent-dim); border: 1.5px solid var(--accent);
+    border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .logo-text h1 { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--accent); }
+  .logo-text p { font-size: 0.7rem; color: var(--text-muted); }
+
+  .container { max-width: 700px; margin: 0 auto; padding: 20px 14px; }
+
+  .calendar-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 20px;
+  }
+  .calendar-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; background: var(--surface2); border-bottom: 1px solid var(--border);
+  }
+  .nav-btn {
+    width: 34px; height: 34px; background: var(--accent-dim); border: 1px solid var(--accent);
+    border-radius: 8px; color: var(--accent); font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+  }
+  .nav-btn:hover { background: var(--accent); color: var(--bg); }
+  .month-title { font-family: 'Playfair Display', serif; font-size: 1.1rem; }
+  .month-title span { color: var(--accent); }
+
+  .days-grid { padding: 14px; }
+  .weekdays { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; margin-bottom: 6px; }
+  .weekday { text-align: center; font-size: 0.65rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; padding: 4px 0; }
+  .days { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+  .day {
+    aspect-ratio: 1; border-radius: 8px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 500;
+    cursor: pointer; border: 1.5px solid transparent; transition: all 0.18s; min-height: 44px;
+  }
+  .day:hover:not(.empty):not(.past) { border-color: var(--accent); background: var(--accent-dim); }
+  .day.empty, .day.past { cursor: default; color: var(--text-muted); opacity: 0.4; }
+  .day.today { background: var(--today); border-color: var(--accent); }
+  .day.selected { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .dot-row { display: flex; gap: 2px; margin-top: 2px; }
+  .dot { width: 4px; height: 4px; border-radius: 50%; }
+  .dot.free { background: var(--success); }
+  .dot.booked { background: #3d4a6b; }
+
+  .time-panel { padding: 16px 20px; border-top: 1px solid var(--border); }
+  .panel-title { font-size: 0.82rem; color: var(--accent); margin-bottom: 12px; font-weight: 600; }
+  .time-input-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .time-input {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); padding: 9px 12px; font-size: 0.88rem; outline: none; flex: 1; min-width: 110px;
+    transition: border-color 0.2s;
+  }
+  .time-input:focus { border-color: var(--accent); }
+  .btn-add {
+    background: var(--accent); color: var(--bg); border: none; border-radius: 8px;
+    padding: 9px 18px; font-weight: 700; font-size: 0.82rem; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  .btn-add:hover { transform: translateY(-1px); box-shadow: 0 4px 14px var(--accent-glow); }
+  .btn-add:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .slots-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  .card-header {
+    padding: 14px 18px; background: var(--surface2); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-header h3 { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .badge { background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent); font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+  .slots-list { padding: 10px; max-height: 350px; overflow-y: auto; }
+  .slot-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 5px; transition: border-color 0.2s;
+  }
+  .slot-item.is-booked { border-color: #3d4a6b; opacity: 0.7; }
+  .slot-info { display: flex; flex-direction: column; gap: 2px; }
+  .slot-date { font-size: 0.82rem; font-weight: 600; }
+  .slot-time { font-size: 0.72rem; color: var(--accent); font-weight: 500; }
+  .slot-status { font-size: 0.62rem; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
+  .slot-status.free { background: rgba(76,175,122,0.15); color: var(--success); }
+  .slot-status.booked { background: rgba(61,74,107,0.5); color: #8899cc; }
+  .btn-delete {
+    width: 26px; height: 26px; background: rgba(224,85,85,0.1); border: 1px solid rgba(224,85,85,0.3);
+    border-radius: 6px; color: var(--danger); cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+  }
+  .btn-delete:hover { background: var(--danger); color: white; }
+  .btn-delete:disabled { opacity: 0.3; cursor: not-allowed; }
+  .empty-state { text-align: center; padding: 28px; color: var(--text-muted); font-size: 0.82rem; }
+
+  .toast {
+    position: fixed; bottom: 20px; right: 16px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 16px; font-size: 0.82rem; max-width: 280px;
+    transform: translateY(60px); opacity: 0; transition: all 0.3s; z-index: 999;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { border-color: var(--success); color: var(--success); }
+  .toast.error { border-color: var(--danger); color: var(--danger); }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo-icon">📚</div>
+  <div class="logo-text">
+    <h1>Панель учителя</h1>
+    <p>Управление расписанием</p>
+  </div>
+</header>
+
+<div class="container">
+  <div class="calendar-card">
+    <div class="calendar-nav">
+      <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+      <div class="month-title" id="monthTitle"></div>
+      <button class="nav-btn" onclick="changeMonth(1)">›</button>
+    </div>
+    <div class="days-grid">
+      <div class="weekdays">
+        <div class="weekday">Пн</div><div class="weekday">Вт</div><div class="weekday">Ср</div>
+        <div class="weekday">Чт</div><div class="weekday">Пт</div>
+        <div class="weekday" style="color:#e05555">Сб</div><div class="weekday" style="color:#e05555">Вс</div>
+      </div>
+      <div class="days" id="daysGrid"></div>
+    </div>
+    <div class="time-panel" id="timePanel" style="display:none">
+      <div class="panel-title" id="timePanelTitle">Добавить слот</div>
+      <div class="time-input-row">
+        <input type="time" class="time-input" id="timeInput" value="10:00">
+        <button class="btn-add" onclick="addSlot()">+ Добавить слот</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="slots-card">
+    <div class="card-header">
+      <h3>Все слоты</h3>
+      <div class="badge" id="slotsBadge">0</div>
+    </div>
+    <div class="slots-list" id="slotsList"><div class="empty-state">Загрузка...</div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Инициализация Telegram WebApp
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const API_URL = "{{ api_url }}";
+const SECRET = "{{ secret }}";
+
+let currentDate = new Date();
+let selectedDate = null;
+let allSlots = [];
+
+const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast show ${type}`;
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+async function loadSlots() {
+  try {
+    const r = await fetch(`${API_URL}/api/slots/all`);
+    allSlots = await r.json();
+    renderCalendar(); renderSlotsList();
+  } catch(e) { showToast('Ошибка загрузки', 'error'); }
+}
+
+function getSlotsForDate(d) { return allSlots.filter(s => s.datetime.startsWith(d)); }
+
+function renderCalendar() {
+  const y = currentDate.getFullYear(), m = currentDate.getMonth();
+  document.getElementById('monthTitle').innerHTML = `<span>${MONTHS[m]}</span> ${y}`;
+  const firstDow = (new Date(y,m,1).getDay()+6)%7;
+  const lastDay = new Date(y,m+1,0).getDate();
+  const todayStr = new Date().toISOString().slice(0,10);
+  const grid = document.getElementById('daysGrid');
+  grid.innerHTML = '';
+  for(let i=0;i<firstDow;i++){const e=document.createElement('div');e.className='day empty';grid.appendChild(e);}
+  for(let d=1;d<=lastDay;d++){
+    const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const el=document.createElement('div');
+    const isPast=ds<todayStr, isToday=ds===todayStr, isSel=selectedDate===ds;
+    const slots=getSlotsForDate(ds);
+    el.className=`day${isPast?' past':''}${isToday?' today':''}${isSel?' selected':''}`;
+    el.innerHTML=`${d}`;
+    if(slots.length){const dr=document.createElement('div');dr.className='dot-row';slots.slice(0,3).forEach(s=>{const dot=document.createElement('div');dot.className=`dot ${s.is_booked?'booked':'free'}`;dr.appendChild(dot);});el.appendChild(dr);}
+    if(!isPast) el.onclick=()=>selectDate(ds);
+    grid.appendChild(el);
+  }
+}
+
+function selectDate(ds) {
+  selectedDate=ds; renderCalendar();
+  const [y,m,d]=ds.split('-');
+  document.getElementById('timePanelTitle').textContent=`Добавить слот на ${d}.${m}.${y}`;
+  document.getElementById('timePanel').style.display='block';
+}
+
+function changeMonth(dir){currentDate.setMonth(currentDate.getMonth()+dir);selectedDate=null;document.getElementById('timePanel').style.display='none';renderCalendar();}
+
+async function addSlot(){
+  if(!selectedDate)return showToast('Выберите дату','error');
+  const time=document.getElementById('timeInput').value;
+  if(!time)return showToast('Выберите время','error');
+  const btn=document.querySelector('.btn-add');
+  btn.disabled=true; btn.textContent='Сохранение...';
+  try{
+    const r=await fetch(`${API_URL}/api/slots/add`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({datetime_str:`${selectedDate}T${time}`,secret:SECRET})});
+    const data=await r.json();
+    if(!r.ok)throw new Error(data.detail||'Ошибка');
+    showToast('✅ Слот добавлен!');
+    await loadSlots();
+  }catch(e){showToast(e.message,'error');}
+  finally{btn.disabled=false;btn.textContent='+ Добавить слот';}
+}
+
+async function deleteSlot(id){
+  if(!confirm('Удалить этот слот?'))return;
+  try{
+    const r=await fetch(`${API_URL}/api/slots/${id}?secret=${SECRET}`,{method:'DELETE'});
+    const data=await r.json();
+    if(!r.ok)throw new Error(data.detail||'Ошибка');
+    showToast('🗑 Слот удалён'); await loadSlots();
+  }catch(e){showToast(e.message,'error');}
+}
+
+function renderSlotsList(){
+  const list=document.getElementById('slotsList');
+  const badge=document.getElementById('slotsBadge');
+  badge.textContent=allSlots.filter(s=>!s.is_booked).length;
+  if(!allSlots.length){list.innerHTML='<div class="empty-state">📭 Нет слотов</div>';return;}
+  const sorted=[...allSlots].sort((a,b)=>a.datetime.localeCompare(b.datetime));
+  list.innerHTML=sorted.map(s=>{
+    const dt=new Date(s.datetime);
+    const dateStr=dt.toLocaleDateString('ru-RU',{day:'2-digit',month:'short',year:'numeric'});
+    const timeStr=dt.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="slot-item ${s.is_booked?'is-booked':''}">
+      <div class="slot-info"><div class="slot-date">${dateStr}</div><div class="slot-time">⏰ ${timeStr}</div></div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span class="slot-status ${s.is_booked?'booked':'free'}">${s.is_booked?'ЗАНЯТ':'СВОБОДЕН'}</span>
+        <button class="btn-delete" onclick="deleteSlot(${s.id})" ${s.is_booked?'disabled':''}>✕</button>
+      </div></div>`;
+  }).join('');
+}
+
+loadSlots();
+setInterval(loadSlots, 30000);
+</script>
+</body>
+</html>

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Запись на урок</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f3ef;
+    --surface: #ffffff;
+    --surface2: #f0ece4;
+    --border: #ddd8ce;
+    --accent: #2d5a3d;
+    --accent-light: rgba(45,90,61,0.1);
+    --accent-glow: rgba(45,90,61,0.3);
+    --text: #1a2010;
+    --text-muted: #7a8060;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 40px;
+  }
+  header {
+    background: var(--accent); padding: 18px 20px;
+    display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100;
+  }
+  .logo-icon { width: 36px; height: 36px; background: rgba(255,255,255,0.15); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .logo-text h1 { font-family: 'Cormorant Garamond', serif; font-size: 1.2rem; color: white; font-weight: 600; }
+  .logo-text p { font-size: 0.68rem; color: rgba(255,255,255,0.65); }
+  .container { max-width: 680px; margin: 0 auto; padding: 20px 14px; }
+  .card { background: var(--surface); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 16px; box-shadow: 0 2px 16px rgba(0,0,0,0.04); }
+  .cal-nav { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+  .nav-btn { width: 32px; height: 32px; border: 1.5px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-muted); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .nav-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  .month-title { font-family: 'Cormorant Garamond', serif; font-size: 1.1rem; font-weight: 600; }
+  .month-title em { color: var(--accent); font-style: normal; }
+  .cal-body { padding: 14px 16px 18px; }
+  .weekdays { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; margin-bottom: 5px; }
+  .weekday { text-align: center; font-size: 0.64rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; padding: 4px 0; }
+  .days-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
+  .day {
+    aspect-ratio: 1; border-radius: 8px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600;
+    cursor: default; color: #c5c0b5; border: 1.5px solid transparent; transition: all 0.18s; min-height: 42px;
+  }
+  .day.past { color: var(--border); }
+  .day.available { color: var(--text); background: var(--accent-light); border-color: rgba(45,90,61,0.2); cursor: pointer; }
+  .day.available:hover { background: var(--accent); color: white; border-color: var(--accent); }
+  .day.selected { background: var(--accent); color: white; border-color: var(--accent); }
+  .day.has-dot::after { content:''; position:absolute; bottom:3px; width:4px; height:4px; border-radius:50%; background:var(--accent); }
+  .day { position: relative; }
+  .day.selected.has-dot::after { background: rgba(255,255,255,0.7); }
+
+  .time-section { border-top: 1px solid var(--border); padding: 16px 18px; }
+  .section-title { font-family: 'Cormorant Garamond', serif; font-size: 0.95rem; font-weight: 600; margin-bottom: 12px; }
+  .time-slots-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(76px,1fr)); gap: 7px; }
+  .time-slot { padding: 9px 0; text-align: center; border-radius: 8px; font-size: 0.8rem; font-weight: 700; border: 1.5px solid; cursor: pointer; transition: all 0.18s; }
+  .time-slot.free { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  .time-slot.free:hover, .time-slot.free.selected-time { background: var(--accent); color: white; }
+  .time-slot.taken { border-color: var(--border); color: #c5c0b5; cursor: not-allowed; background: var(--surface2); }
+
+  .form-section { padding: 18px 18px; border-top: 1px solid var(--border); }
+  .form-group { margin-bottom: 13px; }
+  label { display: block; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em; }
+  input { width: 100%; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 13px; font-family: 'Nunito',sans-serif; font-size: 0.88rem; color: var(--text); outline: none; transition: border-color 0.2s; }
+  input:focus { border-color: var(--accent); }
+  input:read-only { opacity: 0.6; cursor: not-allowed; }
+  .info-box { padding: 10px 13px; background: var(--accent-light); border-radius: 8px; font-size: 0.78rem; color: var(--accent); margin-bottom: 13px; }
+  .btn-book { width: 100%; background: var(--accent); color: white; border: none; border-radius: 12px; padding: 13px; font-family: 'Nunito',sans-serif; font-weight: 700; font-size: 0.92rem; cursor: pointer; transition: all 0.2s; }
+  .btn-book:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px var(--accent-glow); }
+  .btn-book:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .legend { display: flex; gap: 16px; padding: 12px 18px; border-top: 1px solid var(--border); background: var(--surface2); }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--text-muted); }
+  .legend-dot { width: 11px; height: 11px; border-radius: 3px; border: 1.5px solid; }
+  .legend-dot.avail { background: var(--accent-light); border-color: var(--accent); }
+  .legend-dot.unavail { background: var(--surface2); border-color: var(--border); }
+
+  .success-card { background: var(--surface); border: 2px solid #4caf7a; border-radius: 16px; padding: 36px 24px; text-align: center; display: none; }
+  .success-card.show { display: block; }
+  .success-icon { font-size: 2.8rem; margin-bottom: 14px; }
+  .success-card h2 { font-family: 'Cormorant Garamond',serif; font-size: 1.5rem; margin-bottom: 10px; }
+  .success-card p { color: var(--text-muted); font-size: 0.86rem; line-height: 1.6; }
+  .success-datetime { font-size: 1.05rem; font-weight: 700; color: var(--accent); margin: 10px 0; }
+
+  .toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%) translateY(50px); background:var(--text); color:white; border-radius:10px; padding:10px 18px; font-size:0.82rem; transition:all 0.3s; z-index:999; opacity:0; }
+  .toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
+  .toast.error { background:#e05555; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo-icon">✏️</div>
+  <div class="logo-text">
+    <h1>Запись на урок</h1>
+    <p>Выберите удобное время</p>
+  </div>
+</header>
+
+<div class="container">
+  <div class="card" id="calendarCard">
+    <div class="cal-nav">
+      <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+      <div class="month-title" id="monthTitle"></div>
+      <button class="nav-btn" onclick="changeMonth(1)">›</button>
+    </div>
+    <div class="cal-body">
+      <div class="weekdays">
+        <div class="weekday">Пн</div><div class="weekday">Вт</div><div class="weekday">Ср</div>
+        <div class="weekday">Чт</div><div class="weekday">Пт</div>
+        <div class="weekday" style="color:#c05555">Сб</div><div class="weekday" style="color:#c05555">Вс</div>
+      </div>
+      <div class="days-grid" id="daysGrid"></div>
+    </div>
+    <div class="time-section" id="timeSection" style="display:none">
+      <div class="section-title" id="timeSectionTitle">Выберите время</div>
+      <div class="time-slots-grid" id="timeSlotsGrid"></div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot avail"></div> Доступно</div>
+      <div class="legend-item"><div class="legend-dot unavail"></div> Недоступно</div>
+    </div>
+  </div>
+
+  <div class="card" id="formCard" style="display:none">
+    <div class="form-section">
+      <div class="section-title">Ваши данные</div>
+      <div class="info-box" id="tgInfo" style="display:none">✅ Данные получены из Telegram автоматически</div>
+      <div class="form-group">
+        <label>Имя и фамилия</label>
+        <input type="text" id="studentName" placeholder="Иван Иванов">
+      </div>
+      <div class="form-group" id="tgIdGroup">
+        <label>Ваш Telegram ID</label>
+        <input type="number" id="telegramId" placeholder="Узнать у @userinfobot">
+      </div>
+      <div class="form-group">
+        <label>Telegram Username (необязательно)</label>
+        <input type="text" id="telegramUsername" placeholder="@username">
+      </div>
+      <button class="btn-book" onclick="submitBooking()" id="bookBtn">📅 Записаться на урок</button>
+    </div>
+  </div>
+
+  <div class="success-card" id="successCard">
+    <div class="success-icon">🎉</div>
+    <h2>Заявка отправлена!</h2>
+    <div class="success-datetime" id="successDatetime"></div>
+    <p>Ожидайте подтверждения от учителя в Telegram.<br>После подтверждения вы получите ссылки на оплату.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Инициализация Telegram WebApp
+const tg = window.Telegram?.WebApp;
+let tgUser = null;
+
+if (tg) {
+  tg.ready();
+  tg.expand();
+  tgUser = tg.initDataUnsafe?.user;
+}
+
+// Автозаполнение из Telegram если доступно
+if (tgUser) {
+  const nameField = document.getElementById('studentName');
+  const tgIdField = document.getElementById('telegramId');
+  const usernameField = document.getElementById('telegramUsername');
+  const tgIdGroup = document.getElementById('tgIdGroup');
+  const tgInfo = document.getElementById('tgInfo');
+
+  const fullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ');
+  if (fullName) { nameField.value = fullName; }
+  if (tgUser.id) { tgIdField.value = tgUser.id; tgIdField.readOnly = true; }
+  if (tgUser.username) { usernameField.value = '@' + tgUser.username; }
+  tgInfo.style.display = 'block';
+}
+
+const API_URL = "{{ api_url }}";
+let currentDate = new Date();
+let selectedDate = null;
+let selectedSlot = null;
+let allSlots = [];
+
+const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent=msg; t.className=`toast show ${type}`;
+  setTimeout(()=>t.className='toast', 3500);
+}
+
+async function loadSlots() {
+  try {
+    const r = await fetch(`${API_URL}/api/slots`);
+    allSlots = await r.json();
+    renderCalendar();
+  } catch(e) { showToast('Ошибка загрузки расписания','error'); }
+}
+
+function getSlotsForDate(ds) { return allSlots.filter(s=>s.datetime.startsWith(ds)); }
+
+function renderCalendar() {
+  const y=currentDate.getFullYear(), m=currentDate.getMonth();
+  document.getElementById('monthTitle').innerHTML=`<em>${MONTHS[m]}</em> ${y}`;
+  const firstDow=(new Date(y,m,1).getDay()+6)%7;
+  const lastDay=new Date(y,m+1,0).getDate();
+  const today=new Date(); today.setHours(0,0,0,0);
+  const grid=document.getElementById('daysGrid'); grid.innerHTML='';
+  for(let i=0;i<firstDow;i++){const e=document.createElement('div');e.className='day empty';grid.appendChild(e);}
+  for(let d=1;d<=lastDay;d++){
+    const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayDate=new Date(y,m,d);
+    const freeSlots=getSlotsForDate(ds).filter(s=>!s.is_booked);
+    const el=document.createElement('div');
+    const isPast=dayDate<today, isSel=selectedDate===ds, hasAvail=freeSlots.length>0;
+    let cls='day';
+    if(isPast)cls+=' past';
+    else if(hasAvail){cls+=' available';if(isSel)cls+=' selected';if(freeSlots.length)cls+=' has-dot';}
+    el.className=cls; el.textContent=d;
+    if(!isPast&&hasAvail) el.onclick=()=>selectDate(ds);
+    grid.appendChild(el);
+  }
+}
+
+function selectDate(ds) {
+  selectedDate=ds; selectedSlot=null; renderCalendar();
+  const [y,m,d]=ds.split('-');
+  document.getElementById('timeSectionTitle').textContent=`${d}.${m}.${y} — выберите время:`;
+  const slots=getSlotsForDate(ds).filter(s=>!s.is_booked);
+  const g=document.getElementById('timeSlotsGrid');
+  g.innerHTML=slots.map(s=>{
+    const dt=new Date(s.datetime);
+    const ts=dt.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="time-slot free" onclick="selectTime(${s.id},'${s.datetime}',this)">${ts}</div>`;
+  }).join('');
+  document.getElementById('timeSection').style.display='block';
+  document.getElementById('formCard').style.display='none';
+}
+
+function selectTime(slotId, datetime, el) {
+  selectedSlot={id:slotId, datetime};
+  document.querySelectorAll('.time-slot').forEach(t=>t.classList.remove('selected-time'));
+  el.classList.add('selected-time');
+  document.getElementById('formCard').style.display='block';
+  document.getElementById('formCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function changeMonth(dir){currentDate.setMonth(currentDate.getMonth()+dir);selectedDate=null;selectedSlot=null;document.getElementById('timeSection').style.display='none';document.getElementById('formCard').style.display='none';renderCalendar();}
+
+async function submitBooking() {
+  if(!selectedSlot) return showToast('Выберите время урока','error');
+  const name=document.getElementById('studentName').value.trim();
+  const tgId=parseInt(document.getElementById('telegramId').value.trim());
+  const username=document.getElementById('telegramUsername').value.trim().replace('@','');
+  if(!name) return showToast('Введите имя и фамилию','error');
+  if(!tgId||isNaN(tgId)) return showToast('Введите корректный Telegram ID','error');
+
+  const btn=document.getElementById('bookBtn');
+  btn.disabled=true; btn.textContent='Отправка...';
+  try {
+    const r=await fetch(`${API_URL}/api/book`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({slot_id:selectedSlot.id,student_telegram_id:tgId,student_username:username||null,student_name:name})
+    });
+    const data=await r.json();
+    if(!r.ok)throw new Error(data.detail||'Ошибка');
+    const dt=new Date(selectedSlot.datetime);
+    const dtStr=dt.toLocaleDateString('ru-RU',{weekday:'long',day:'numeric',month:'long'})+' в '+dt.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('successDatetime').textContent=dtStr;
+    document.getElementById('calendarCard').style.display='none';
+    document.getElementById('formCard').style.display='none';
+    document.getElementById('successCard').classList.add('show');
+    // Закрываем WebApp через 3 секунды если открыт в Telegram
+    if(tg) setTimeout(()=>tg.close(), 3000);
+  } catch(e) {
+    showToast(e.message,'error');
+    btn.disabled=false; btn.textContent='📅 Записаться на урок';
+  }
+}
+
+loadSlots();
+</script>
+</body>
+</html>
