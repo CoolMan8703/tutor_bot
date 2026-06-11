@@ -59,28 +59,28 @@ async def startup():
 
 def run_bot_thread():
     """Запускает бота в отдельном потоке с собственным event loop"""
+    import asyncio
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(start_bot())
+    
+    async def start_bot_no_signals():
+        from aiogram import Bot, Dispatcher
+        from bot.handlers import admin, client as client_handler
 
+        bot_token = os.getenv("BOT_TOKEN")
+        bot = Bot(token=bot_token)
 
-async def start_bot():
-    from aiogram import Bot, Dispatcher
-    from bot.handlers import admin, client as client_handler
+        import bot.main as bot_module
+        bot_module.bot = bot
 
-    bot_token = os.getenv("BOT_TOKEN")
-    bot = Bot(token=bot_token)
+        dp = Dispatcher()
+        dp.include_router(admin.router)
+        dp.include_router(client_handler.router)
+        
+        # start_polling без signal handlers — важно для работы в потоке
+        await dp.start_polling(bot, handle_signals=False)
 
-    # Сохраняем бот глобально для уведомлений
-    import bot.main as bot_module
-    bot_module.bot = bot
-
-    dp = Dispatcher()
-    dp.include_router(admin.router)
-    dp.include_router(client_handler.router)
-    await dp.start_polling(bot)
-
-
+    loop.run_until_complete(start_bot_no_signals())
 # ─── Модели ───────────────────────────────────────────────────────────────────
 
 class AddSlotRequest(BaseModel):
