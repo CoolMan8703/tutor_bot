@@ -8,7 +8,13 @@ from bot.keyboards.admin_kb import booking_approval_kb, payment_links_menu
 from bot.keyboards.client_kb import admin_main_menu_with_webapp, client_main_menu
 
 router = Router()
-
+def student_label(username, name):
+    if username:
+        return f"@{username}"
+    if name:
+        return name
+    return "Неизвестно"
+    
 ADMIN_LOGIN = os.getenv("ADMIN_LOGIN", "teacher")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password")
 ADMIN_TELEGRAM_ID = int(os.getenv("ADMIN_TELEGRAM_ID", "0"))
@@ -214,7 +220,12 @@ async def approve_booking(callback: CallbackQuery):
                 await bot.send_message(booking.student_telegram_id, f"✅ <b>Урок подтверждён!</b>\n\n📅 <b>{dt_str}</b>\nУчитель подтвердил вашу запись.{payment_text}", parse_mode="HTML")
             except Exception:
                 pass
-    await callback.message.edit_text(f"✅ Бронирование #{booking_id} <b>подтверждено</b>!", parse_mode="HTML")
+student_info = student_label(booking.student_username, booking.student_name) if booking else "?"
+dt_str = booking.slot_datetime.strftime("%d.%m.%Y в %H:%M") if booking else "?"
+await callback.message.edit_text(
+    f"✅ Бронирование #{booking_id} <b>подтверждено</b>!\n\n👤 Ученик: {student_info}\n📅 {dt_str}",
+    parse_mode="HTML"
+)
     await callback.answer("Подтверждено!")
 
 
