@@ -132,14 +132,31 @@ async def get_slots(db: AsyncSession = Depends(get_db)):
 
 @app.get("/api/slots/all")
 async def get_all_slots(db: AsyncSession = Depends(get_db)):
+    """Все слоты (для админа), включая данные ученика по занятым слотам"""
     since = datetime.utcnow() - timedelta(days=30)
     result = await db.execute(
         select(AvailableSlot)
         .where(AvailableSlot.slot_datetime >= since)
         .order_by(AvailableSlot.slot_datetime)
     )
-    return [{"id": s.id, "datetime": s.slot_datetime.isoformat(), "is_booked": s.is_booked}
-            for s in result.scalars().all()]
+    slots = result.scalars().all()
+
+    booking_result = await db.execute(
+        select(Booking).where(Booking.status != "rejected")
+    )
+    bookings_by_slot = {}
+    for b in booking_result.scalars().all():
+        bookings_by_slot[b.slot_id] = b
+
+    response = []
+    for s in slots:
+        item = {"id": s.id, "datetime": s.slot_datetime.isoformat(), "is_booked": s.is_booked}
+        booking = bookings_by_slot.get(s.id)
+        if s.is_booked and booking:
+            item["student"] = f"@{booking.student_username}" if booking.student_username else (booking.student_name or "Неизвестно")
+            item["booking_status"] = booking.status
+        response.append(item)
+    return response
 
 
 @app.post("/api/slots/add")
