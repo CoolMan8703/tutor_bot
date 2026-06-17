@@ -69,5 +69,6 @@ async def client_payment(callback: CallbackQuery):
         text = "💳 <b>Способы оплаты:</b>\n\n"
         for link in links:
             text += f"• <a href='{link.url}'>{link.title}</a>\n"
+        text += "\n⚠️ <b>Важно:</b> при оплате обязательно укажите в примечании к платежу, за какие даты урока вы платите."
         await callback.message.answer(text, parse_mode="HTML", reply_markup=client_main_menu())
     await callback.answer()
