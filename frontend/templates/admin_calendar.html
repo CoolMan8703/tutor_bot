@@ -112,6 +112,7 @@
   .slot-info { display: flex; flex-direction: column; gap: 2px; }
   .slot-date { font-size: 0.82rem; font-weight: 600; }
   .slot-time { font-size: 0.72rem; color: var(--accent); font-weight: 500; }
+  .slot-student { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
   .slot-status { font-size: 0.62rem; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
   .slot-status.free { background: rgba(76,175,122,0.15); color: var(--success); }
   .slot-status.booked { background: rgba(61,74,107,0.5); color: #8899cc; }
@@ -276,12 +277,13 @@ function renderSlotsList(){
     const dt=new Date(s.datetime);
     const dateStr=dt.toLocaleDateString('ru-RU',{day:'2-digit',month:'short',year:'numeric'});
     const timeStr=dt.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    const studentLine = s.is_booked && s.student ? `<div class="slot-student">👤 ${s.student}</div>` : '';
     return `<div class="slot-item ${s.is_booked?'is-booked':''}">
-      <div class="slot-info"><div class="slot-date">${dateStr}</div><div class="slot-time">⏰ ${timeStr}</div></div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <span class="slot-status ${s.is_booked?'booked':'free'}">${s.is_booked?'ЗАНЯТ':'СВОБОДЕН'}</span>
-        <button class="btn-delete" onclick="deleteSlot(${s.id})" ${s.is_booked?'disabled':''}>✕</button>
-      </div></div>`;
+  <div class="slot-info"><div class="slot-date">${dateStr}</div><div class="slot-time">⏰ ${timeStr}</div>${studentLine}</div>
+  <div style="display:flex;gap:6px;align-items:center">
+    <span class="slot-status ${s.is_booked?'booked':'free'}">${s.is_booked?'ЗАНЯТ':'СВОБОДЕН'}</span>
+    <button class="btn-delete" onclick="deleteSlot(${s.id})" ${s.is_booked?'disabled':''}>✕</button>
+  </div></div>`;
   }).join('');
 }
 
