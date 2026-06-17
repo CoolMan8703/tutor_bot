@@ -180,7 +180,7 @@ async def add_payment_link(callback: CallbackQuery):
         s = (await db.execute(select(AdminSession).where(AdminSession.telegram_id == callback.from_user.id))).scalar_one_or_none()
         if s: s.login_step = "waiting_payment_title"
         await db.commit()
-    await callback.message.answer("📝 Введите название ссылки (например: «Сбербанк»):")
+    await callback.message.answer("📝 Введите название ссылки (например, Monobank):")
     await callback.answer()
 
 
