@@ -220,7 +220,7 @@ async def approve_booking(callback: CallbackQuery):
                 await bot.send_message(booking.student_telegram_id, f"✅ <b>Урок подтверждён!</b>\n\n📅 <b>{dt_str}</b>\nУчитель подтвердил вашу запись.{payment_text}", parse_mode="HTML")
             except Exception:
                 pass
-student_info = student_label(booking.student_username, booking.student_name) if booking else "?"
+    student_info = student_label(booking.student_username, booking.student_name) if booking else "?"
     dt_str = booking.slot_datetime.strftime("%d.%m.%Y в %H:%M") if booking else "?"
     await callback.message.edit_text(
         f"✅ Бронирование #{booking_id} <b>подтверждено</b>!\n\n👤 Ученик: {student_info}\n📅 {dt_str}",
