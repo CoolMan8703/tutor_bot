@@ -395,10 +395,10 @@ function closeCancelModal() {
 async function confirmCancel() {
   if (!cancelBookingId) return;
   closeCancelModal();
-  
-  const tgId = tgUser ? tgUser.id : null;
+
+  const tgId = tgUser && tgUser.id ? tgUser.id : null;
   if (!tgId) {
-    showToast('Ошибка: не удалось получить Telegram ID', 'error');
+    showToast('Не удалось получить Telegram ID', 'error');
     return;
   }
 
@@ -411,7 +411,10 @@ async function confirmCancel() {
       await loadMyBookings();
       await loadSlots();
     } else {
-      showToast(data.detail || 'Ошибка: ' + r.status, 'error');
+      let msg = data.detail;
+      if (Array.isArray(msg)) msg = msg.map(x => x.msg || JSON.stringify(x)).join('; ');
+      if (typeof msg !== 'string') msg = JSON.stringify(msg);
+      showToast(msg || ('Ошибка ' + r.status), 'error');
     }
   } catch(e) {
     showToast('Ошибка соединения: ' + e.message, 'error');
