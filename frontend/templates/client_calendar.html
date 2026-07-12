@@ -386,21 +386,28 @@ function closeCancelModal() {
 }
 
 async function confirmCancel() {
-  if (!cancelBookingId || !tgUser) return;
+  if (!cancelBookingId) return;
   closeCancelModal();
+  
+  const tgId = tgUser ? tgUser.id : null;
+  if (!tgId) {
+    showToast('Ошибка: не удалось получить Telegram ID', 'error');
+    return;
+  }
+
   try {
-    const r = await fetch(`${API_URL}/api/bookings/${cancelBookingId}/cancel?student_telegram_id=${tgUser.id}`, { method: 'DELETE' });
+    const url = `${API_URL}/api/bookings/${cancelBookingId}/cancel?student_telegram_id=${tgId}`;
+    const r = await fetch(url, { method: 'DELETE' });
+    const data = await r.json();
     if (r.ok) {
       showToast('✅ Урок отменён');
       await loadMyBookings();
       await loadSlots();
     } else {
-      const data = await r.json();
-      showToast(data.detail || 'Ошибка отмены', 'error');
+      showToast(data.detail || 'Ошибка: ' + r.status, 'error');
     }
   } catch(e) {
-    showToast('Ошибка соединения', 'error');
-    console.error(e);
+    showToast('Ошибка соединения: ' + e.message, 'error');
   }
 }
   
