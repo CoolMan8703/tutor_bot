@@ -342,9 +342,16 @@ async function loadMyBookings() {
   if (!tgUser || !tgUser.id) return;
   try {
     const r = await fetch(`${API_URL}/api/bookings/my/${tgUser.id}`);
+    if (!r.ok) {
+      console.error('Ошибка загрузки записей:', r.status);
+      return;
+    }
     const bookings = await r.json();
     renderMyBookings(bookings);
-  } catch(e) { console.error('Ошибка загрузки записей:', e); }
+  } catch(e) {
+    console.error('Ошибка загрузки записей:', e);
+    // Убираем showToast чтобы не показывать ошибку пользователю
+  }
 }
 
 function renderMyBookings(bookings) {
