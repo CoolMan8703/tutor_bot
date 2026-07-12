@@ -393,17 +393,18 @@ function closeCancelModal() {
 }
 
 async function confirmCancel() {
-  if (!cancelBookingId) return;
   closeCancelModal();
 
-  const tgId = tgUser && tgUser.id ? tgUser.id : null;
-  if (!tgId) {
-    showToast('Не удалось получить Telegram ID', 'error');
+  const bId = parseInt(cancelBookingId);
+  const tgId = tgUser && tgUser.id ? parseInt(tgUser.id) : NaN;
+
+  if (!Number.isInteger(bId) || !Number.isInteger(tgId)) {
+    showToast(`Отладка: booking=${cancelBookingId}, tg=${tgUser ? tgUser.id : 'нет tgUser'}`, 'error');
     return;
   }
 
   try {
-    const url = `${API_URL}/api/bookings/${cancelBookingId}/cancel?student_telegram_id=${tgId}`;
+    const url = `${API_URL}/api/bookings/${bId}/cancel?student_telegram_id=${tgId}`;
     const r = await fetch(url, { method: 'DELETE' });
     const data = await r.json();
     if (r.ok) {
