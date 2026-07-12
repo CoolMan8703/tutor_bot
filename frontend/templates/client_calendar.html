@@ -89,6 +89,33 @@
   .success-card p { color: var(--text-muted); font-size: 0.86rem; line-height: 1.6; }
   .success-datetime { font-size: 1.05rem; font-weight: 700; color: var(--accent); margin: 10px 0; }
 
+  /* Мои записи */
+  .my-bookings-card { background: var(--surface); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 16px; box-shadow: 0 2px 16px rgba(0,0,0,0.04); display: none; }
+  .my-bookings-card.show { display: block; }
+  .my-bookings-header { padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--surface2); display: flex; align-items: center; justify-content: space-between; }
+  .my-bookings-header h3 { font-family: 'Cormorant Garamond', serif; font-size: 0.95rem; font-weight: 600; }
+  .my-booking-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 18px; border-bottom: 1px solid var(--border); }
+  .my-booking-item:last-child { border-bottom: none; }
+  .my-booking-info { display: flex; flex-direction: column; gap: 2px; }
+  .my-booking-date { font-size: 0.84rem; font-weight: 700; color: var(--text); }
+  .my-booking-status { font-size: 0.7rem; color: var(--text-muted); }
+  .my-booking-status.approved { color: #4caf7a; }
+  .my-booking-status.pending { color: #b87d2a; }
+  .btn-cancel-booking { width: 28px; height: 28px; background: rgba(192,85,85,0.1); border: 1.5px solid rgba(192,85,85,0.4); border-radius: 7px; color: #c05555; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.18s; flex-shrink: 0; }
+  .btn-cancel-booking:hover { background: #c05555; color: white; }
+  .btn-cancel-booking:disabled { opacity: 0.3; cursor: not-allowed; }
+  .my-bookings-empty { padding: 20px 18px; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
+/* Модальное окно подтверждения */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.hidden { display: none; }
+  .modal-box { background: var(--surface); border-radius: 16px; padding: 24px 20px; max-width: 320px; width: 100%; text-align: center; }
+  .modal-box h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.1rem; margin-bottom: 8px; }
+  .modal-box p { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; }
+  .modal-btns { display: flex; gap: 10px; }
+  .modal-btn { flex: 1; padding: 11px; border-radius: 10px; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 0.88rem; cursor: pointer; border: none; transition: all 0.18s; }
+  .modal-btn.confirm { background: #c05555; color: white; }
+  .modal-btn.cancel { background: var(--surface2); color: var(--text); border: 1.5px solid var(--border); }
+  
   .toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%) translateY(50px); background:var(--text); color:white; border-radius:10px; padding:10px 18px; font-size:0.82rem; transition:all 0.3s; z-index:999; opacity:0; }
   .toast.show { transform:translateX(-50%) translateY(0); opacity:1; }
   .toast.error { background:#e05555; }
@@ -148,6 +175,27 @@
     </div>
   </div>
 
+  <!-- Мои записи -->
+<div class="my-bookings-card" id="myBookingsCard">
+  <div class="my-bookings-header">
+    <h3>📋 Мои записи</h3>
+    <span id="myBookingsBadge" style="background:var(--accent-light);color:var(--accent);font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:20px;border:1px solid rgba(45,90,61,0.3)">0</span>
+  </div>
+  <div id="myBookingsList"></div>
+</div>
+
+<!-- Модальное подтверждение отмены -->
+<div class="modal-overlay hidden" id="cancelModal">
+  <div class="modal-box">
+    <h3>Отменить урок?</h3>
+    <p id="cancelModalText">Вы уверены, что хотите отменить этот урок?</p>
+    <div class="modal-btns">
+      <button class="modal-btn cancel" onclick="closeCancelModal()">Нет</button>
+      <button class="modal-btn confirm" onclick="confirmCancel()">Да, отменить</button>
+    </div>
+  </div>
+</div>
+  
   <div class="success-card" id="successCard">
     <div class="success-icon">🎉</div>
     <h2>Заявка отправлена!</h2>
@@ -286,8 +334,72 @@ async function submitBooking() {
     btn.disabled=false; btn.textContent='📅 Записаться на урок';
   }
 }
+  
+// ── Мои записи ────────────────────────────────────────────────
+let cancelBookingId = null;
 
+async function loadMyBookings() {
+  if (!tgUser || !tgUser.id) return;
+  try {
+    const r = await fetch(`${API_URL}/api/bookings/my/${tgUser.id}`);
+    const bookings = await r.json();
+    renderMyBookings(bookings);
+  } catch(e) { console.error('Ошибка загрузки записей:', e); }
+}
+
+function renderMyBookings(bookings) {
+  const card = document.getElementById('myBookingsCard');
+  const list = document.getElementById('myBookingsList');
+  const badge = document.getElementById('myBookingsBadge');
+
+  if (!bookings.length) { card.classList.remove('show'); return; }
+  card.classList.add('show');
+  badge.textContent = bookings.length;
+
+  list.innerHTML = bookings.map(b => {
+    const dt = new Date(b.datetime);
+    const dateStr = dt.toLocaleDateString('ru-RU', {day:'numeric', month:'long', year:'numeric'});
+    const timeStr = dt.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+    const statusLabel = b.status === 'approved' ? 'Подтверждён' : 'Ожидает подтверждения';
+    const cancelBtn = b.can_cancel
+      ? `<button class="btn-cancel-booking" onclick="openCancelModal(${b.id}, '${dateStr} в ${timeStr}')" title="Отменить урок">✕</button>`
+      : `<button class="btn-cancel-booking" disabled title="Отмена недоступна менее чем за 12 часов">🔒</button>`;
+    return `<div class="my-booking-item">
+      <div class="my-booking-info">
+        <div class="my-booking-date">${dateStr} в ${timeStr}</div>
+        <div class="my-booking-status ${b.status}">${statusLabel}</div>
+      </div>
+      ${cancelBtn}
+    </div>`;
+  }).join('');
+}
+
+function openCancelModal(bookingId, dateStr) {
+  cancelBookingId = bookingId;
+  document.getElementById('cancelModalText').textContent = `Вы уверены, что хотите отменить урок ${dateStr}?`;
+  document.getElementById('cancelModal').classList.remove('hidden');
+}
+
+function closeCancelModal() {
+  cancelBookingId = null;
+  document.getElementById('cancelModal').classList.add('hidden');
+}
+
+async function confirmCancel() {
+  if (!cancelBookingId || !tgUser) return;
+  closeCancelModal();
+  try {
+    const r = await fetch(`${API_URL}/api/bookings/${cancelBookingId}/cancel?student_telegram_id=${tgUser.id}`, { method: 'DELETE' });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || 'Ошибка');
+    showToast('✅ Урок отменён');
+    await loadMyBookings();
+    await loadSlots();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+  
 loadSlots();
+if (tgUser) loadMyBookings();
 </script>
 </body>
 </html>
