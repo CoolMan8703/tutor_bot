@@ -31,7 +31,7 @@ async def client_my_lessons(callback: CallbackQuery):
                 Booking.student_telegram_id == callback.from_user.id,
                 Booking.slot_datetime >= week_ago,
                 Booking.slot_datetime <= week_ahead,
-                Booking.status != "rejected"
+                Booking.status.notin_(["rejected", "cancelled"])
             ).order_by(Booking.slot_datetime)
         )).scalars().all()
 
