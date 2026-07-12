@@ -48,12 +48,13 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 @app.on_event("startup")
 async def startup():
     await init_db()
-    # Запускаем бота в фоновом потоке
     bot_token = os.getenv("BOT_TOKEN", "")
     if bot_token and "YOUR_BOT_TOKEN" not in bot_token:
         thread = threading.Thread(target=run_bot_thread, daemon=True)
         thread.start()
         print("🤖 Бот запущен в фоновом потоке")
+    # Запускаем фоновые задачи
+    asyncio.create_task(background_scheduler())
     print("✅ API сервер запущен")
 
 
@@ -81,6 +82,62 @@ def run_bot_thread():
         await dp.start_polling(bot, handle_signals=False)
 
     loop.run_until_complete(start_bot_no_signals())
+
+async def background_scheduler():
+    """Фоновые задачи: автоудаление слотов + напоминание учителю каждые 4 часа"""
+    import bot.main as bot_module
+    last_reminder_hour = -1
+
+    while True:
+        await asyncio.sleep(60)  # проверка каждую минуту
+        now = datetime.utcnow()
+
+        try:
+            # ── Задача 1: удалить свободные слоты за 12 часов до начала ──
+            cutoff = now + timedelta(hours=12)
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(AvailableSlot).where(
+                        AvailableSlot.is_booked == False,
+                        AvailableSlot.slot_datetime <= cutoff,
+                        AvailableSlot.slot_datetime > now
+                    )
+                )
+                expired_slots = result.scalars().all()
+                for slot in expired_slots:
+                    await db.delete(slot)
+                if expired_slots:
+                    await db.commit()
+                    print(f"🗑 Удалено {len(expired_slots)} незабронированных слотов (за 12ч)")
+
+            # ── Задача 2: напоминание учителю каждые 4 часа если есть pending ──
+            current_4h_block = now.hour // 4
+            if current_4h_block != last_reminder_hour:
+                last_reminder_hour = current_4h_block
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(
+                        select(Booking).where(Booking.status == "pending")
+                    )
+                    pending = result.scalars().all()
+
+                if pending:
+                    bot = getattr(bot_module, 'bot', None)
+                    if bot:
+                        admin_tg_id = int(os.getenv("ADMIN_TELEGRAM_ID", "0"))
+                        from bot.keyboards.admin_kb import booking_approval_kb
+                        try:
+                            await bot.send_message(
+                                admin_tg_id,
+                                f"🔔 <b>Напоминание!</b>\n\n"
+                                f"У вас {len(pending)} заявок, ожидающих подтверждения.\n"
+                                f"Нажмите «📋 Ожидающие подтверждения» в меню бота.",
+                                parse_mode="HTML"
+                            )
+                        except Exception as e:
+                            print(f"Ошибка напоминания: {e}")
+
+        except Exception as e:
+            print(f"Ошибка планировщика: {e}")
 # ─── Модели ───────────────────────────────────────────────────────────────────
 
 class AddSlotRequest(BaseModel):
@@ -221,6 +278,91 @@ async def book_slot(req: BookSlotRequest, db: AsyncSession = Depends(get_db)):
     asyncio.create_task(notify_teacher_new_booking(booking.id))
     return {"booking_id": booking.id, "status": "pending", "message": "Заявка создана. Ожидайте подтверждения."}
 
+@app.delete("/api/bookings/{booking_id}/cancel")
+async def cancel_booking(booking_id: int, student_telegram_id: int, db: AsyncSession = Depends(get_db)):
+    """Отмена бронирования учеником (только за 12+ часов до начала)"""
+    booking = (await db.execute(
+        select(Booking).where(
+            Booking.id == booking_id,
+            Booking.student_telegram_id == student_telegram_id
+        )
+    )).scalar_one_or_none()
+
+    if not booking:
+        raise HTTPException(status_code=404, detail="Бронирование не найдено")
+    if booking.status == "rejected":
+        raise HTTPException(status_code=400, detail="Бронирование уже отменено")
+
+    # Проверяем 12-часовой лимит
+    now = datetime.utcnow()
+    if booking.slot_datetime - now < timedelta(hours=12):
+        raise HTTPException(status_code=403, detail="Отмена невозможна менее чем за 12 часов до урока")
+
+    # Освобождаем слот
+    slot = (await db.execute(
+        select(AvailableSlot).where(AvailableSlot.id == booking.slot_id)
+    )).scalar_one_or_none()
+    if slot:
+        slot.is_booked = False
+
+    booking.status = "cancelled"
+    await db.commit()
+
+    # Уведомляем учителя
+    asyncio.create_task(notify_teacher_cancellation(booking_id))
+
+    return {"status": "cancelled"}
+
+
+async def notify_teacher_cancellation(booking_id: int):
+    """Уведомление учителя об отмене урока учеником"""
+    try:
+        import bot.main as bot_module
+        bot = getattr(bot_module, 'bot', None)
+        if not bot:
+            return
+
+        async with AsyncSessionLocal() as db:
+            booking = (await db.execute(select(Booking).where(Booking.id == booking_id))).scalar_one_or_none()
+            if not booking:
+                return
+
+        admin_tg_id = int(os.getenv("ADMIN_TELEGRAM_ID", "0"))
+        student_info = f"@{booking.student_username}" if booking.student_username else (booking.student_name or "Неизвестно")
+        dt_str = booking.slot_datetime.strftime("%d.%m.%Y в %H:%M")
+        await bot.send_message(
+            admin_tg_id,
+            f"❌ <b>Ученик отменил урок!</b>\n\n"
+            f"👤 Ученик: {student_info}\n"
+            f"📅 Дата: <b>{dt_str}</b>\n\n"
+            f"Слот снова свободен.",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        print(f"Ошибка уведомления об отмене: {e}")
+
+@app.get("/api/bookings/my/{telegram_id}")
+async def get_my_bookings(telegram_id: int, db: AsyncSession = Depends(get_db)):
+    """Будущие бронирования ученика для отображения в календаре"""
+    now = datetime.utcnow()
+    result = await db.execute(
+        select(Booking).where(
+            Booking.student_telegram_id == telegram_id,
+            Booking.slot_datetime > now,
+            Booking.status.in_(["pending", "approved"])
+        ).order_by(Booking.slot_datetime)
+    )
+    bookings = result.scalars().all()
+    cancellable_until = now + timedelta(hours=12)
+    return [
+        {
+            "id": b.id,
+            "datetime": b.slot_datetime.isoformat(),
+            "status": b.status,
+            "can_cancel": b.slot_datetime > cancellable_until
+        }
+        for b in bookings
+    ]
 
 async def notify_teacher_new_booking(booking_id: int):
     try:
