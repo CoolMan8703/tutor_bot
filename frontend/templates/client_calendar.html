@@ -390,12 +390,18 @@ async function confirmCancel() {
   closeCancelModal();
   try {
     const r = await fetch(`${API_URL}/api/bookings/${cancelBookingId}/cancel?student_telegram_id=${tgUser.id}`, { method: 'DELETE' });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.detail || 'Ошибка');
-    showToast('✅ Урок отменён');
-    await loadMyBookings();
-    await loadSlots();
-  } catch(e) { showToast(e.message, 'error'); }
+    if (r.ok) {
+      showToast('✅ Урок отменён');
+      await loadMyBookings();
+      await loadSlots();
+    } else {
+      const data = await r.json();
+      showToast(data.detail || 'Ошибка отмены', 'error');
+    }
+  } catch(e) {
+    showToast('Ошибка соединения', 'error');
+    console.error(e);
+  }
 }
   
 loadSlots();
