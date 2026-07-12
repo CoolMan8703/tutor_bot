@@ -393,13 +393,13 @@ function closeCancelModal() {
 }
 
 async function confirmCancel() {
+  const bId = parseInt(cancelBookingId);  // сохраняем ДО закрытия модалки
   closeCancelModal();
 
-  const bId = parseInt(cancelBookingId);
   const tgId = tgUser && tgUser.id ? parseInt(tgUser.id) : NaN;
 
   if (!Number.isInteger(bId) || !Number.isInteger(tgId)) {
-    showToast(`Отладка: booking=${cancelBookingId}, tg=${tgUser ? tgUser.id : 'нет tgUser'}`, 'error');
+    showToast(`Отладка: booking=${bId}, tg=${tgId}`, 'error');
     return;
   }
 
