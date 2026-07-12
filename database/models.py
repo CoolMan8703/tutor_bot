@@ -4,7 +4,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text
 from datetime import datetime
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./tutor_bot.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:////app/data/tutor_bot.db")
 
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
